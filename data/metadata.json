@@ -1,0 +1,12 @@
+{
+  "4": {
+    "ranges": 362984,
+    "csv_sha256": "3b65bf49938b4a8c950bd3341b245e3c6961df9076b7cb132be576baced19a5d",
+    "binary_sha256": "822046e39eebcf3730a73e265669325738a583b53719783da551809af325d09c"
+  },
+  "6": {
+    "ranges": 369794,
+    "csv_sha256": "731b0a0820a58fd91de956113af053d4d4be91a074c1d12ed917e05165649e1b",
+    "binary_sha256": "f0220b1f0befaf29c493ee6bc33ac3a5f4355a5e28202939ef7561cfbfe7f4b2"
+  }
+}

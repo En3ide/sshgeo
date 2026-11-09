@@ -1,0 +1,14 @@
+/target/
+/resultats-ssh/
+/sshgeo
+/bin/
+/verification/
+__pycache__/
+*.pyc
+*.csv
+*.log
+*.log.*
+*.tar.gz
+*.zip
+.DS_Store
+Thumbs.db

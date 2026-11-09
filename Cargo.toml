@@ -1,0 +1,13 @@
+[package]
+name = "sshgeo"
+version = "1.0.0"
+edition = "2021"
+description = "Classement SSH par pays, entièrement hors ligne"
+
+[dependencies]
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
