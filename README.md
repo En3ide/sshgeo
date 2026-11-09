@@ -1,194 +1,172 @@
 # sshgeo
 
-petit outil en Rust pour voir d'où viennent les tentatives de connexion SSH qui échouent
+Un outil en Rust pour analyser les échecs de connexion SSH et voir de quels pays viennent les IP qui tentent de se connecter à ton serveur
 
-le but, c'est de récupérer les IP dans les logs, de retrouver leur pays et de sortir deux CSV faciles à lire
+Tu le lances, il lit les journaux et génère deux CSV : un classement par pays et un détail IP par IP
 
-ça tourne entièrement hors ligne, même au premier lancement, avec les bases IPv4 et IPv6 directement dans le binaire
+**Tout fonctionne hors ligne**, dès le premier lancement : les bases IPv4 et IPv6 sont intégrées au binaire, sans API ni téléchargement
 
-## ce que ça fait
+## Fonctionnalités
 
-- lit les échecs de mot de passe SSH dans les journaux
-- compte les tentatives par IP et par pays
-- garde la première et la dernière tentative
-- génère un classement par pays et un détail IP par IP
-- affiche les dix pays les plus présents dans le terminal
+- Comptage des échecs de mot de passe SSH par IP et par pays
+- Nombre d'IP distinctes et part des tentatives pour chaque pays
+- Date de la première et de la dernière tentative
+- Lecture des journaux texte, des archives `.gz` et de journald
+- Filtrage par date et choix du dossier de sortie
+- Affichage des dix premiers pays dans le terminal
 
-les connexions réussies ne sont pas comptées et les lignes `Invalid user` seules ne sont pas ajoutées aux échecs
+Le comptage repose sur les lignes SSH `Failed password`, sans ajouter les connexions réussies ni les événements `Invalid user` seuls
 
-## compiler
+## Installation
 
-il faut Rust, Cargo et un compilateur système installés sur la machine
+Le projet cible Linux et utilise uniquement la bibliothèque standard Rust, sans dépendance Cargo externe
 
-```bash
-cargo build --release --offline
-```
-
-le binaire est dans `target/release/sshgeo`
-
-aucune dépendance Cargo à télécharger et pas besoin de Python pour compiler ou utiliser le programme
-
-si tu préfères compiler directement avec Rust :
+Pour compiler, il faut Rust, Cargo et un compilateur système déjà installés
 
 ```bash
-rustc --edition=2021 -O src/main.rs -o sshgeo
+git clone https://github.com/En3ide/sshgeo.git
+cd sshgeo
+cargo build --release --locked --offline
 ```
 
-le projet cible Linux pour la lecture automatique des journaux SSH
+La récupération du dépôt nécessite un accès à GitHub, mais la compilation se fait ensuite hors ligne avec les sources et les bases fournies
 
-## lancer
+Pour lancer directement le programme :
 
 ```bash
 sudo ./target/release/sshgeo
 ```
 
-les deux CSV sont créés dans `resultats-ssh/`, à partir du dossier où tu lances la commande
-
-| fichier | contenu |
-|---|---|
-| `classement_pays.csv` | pays, nombre d'échecs, IP distinctes, pourcentage et dates |
-| `detail_ip.csv` | IP, pays, nombre d'échecs et dates |
-
-les résultats sont triés par nombre d'échecs décroissant et les dates sont en UTC
-
-les CSV utilisent UTF-8 avec BOM et le séparateur `;` pour pouvoir les ouvrir dans Excel
-
-chaque lancement remplace les deux CSV du dossier choisi, donc utilise un autre `--output-dir` si tu veux garder un historique
-
-## en faire une commande
+Pour installer la commande `sshgeo` :
 
 ```bash
 sudo install -d -m 755 /usr/local/lib/sshgeo
 sudo install -m 755 target/release/sshgeo /usr/local/lib/sshgeo/sshgeo
 sudo install -m 755 sshgeo-launcher.sh /usr/local/bin/sshgeo
+```
+
+Tu peux ensuite la lancer depuis n'importe quel dossier :
+
+```bash
 sshgeo
 ```
 
-le lanceur utilise `sudo` quand il faut les droits administrateur pour lire les journaux
+Le lanceur utilise `sudo` pour accéder aux journaux protégés
 
-## quelques exemples
+## Utilisation
+
+Sans option, sshgeo analyse les journaux disponibles et écrit les CSV dans `resultats-ssh/`, à partir du dossier où tu lances la commande
 
 ```bash
-# compter les échecs depuis une date
+# analyser les tentatives depuis une date
 sshgeo --since 2026-11-01
 
-# choisir une période avec les heures de Paris en hiver
+# choisir une période avec un fuseau explicite
 sshgeo --since 2026-11-08T00:00:00+01:00 --until 2026-11-09T00:00:00+01:00
 
-# changer le dossier des CSV
+# choisir le dossier des résultats
 sshgeo --output-dir /var/lib/sshgeo/resultats
 
-# lire des fichiers précis, y compris les archives compressées
+# lire des journaux précis, y compris les archives compressées
 sshgeo --log '/var/log/auth.log*'
 
-# passer par journald
+# utiliser journald
 sshgeo --source journal
-
-# afficher toutes les options
-sshgeo --help
 ```
 
-`--since` inclut la date de début et `--until` exclut la date de fin
+### Options
 
-si tu ne précises pas de fuseau, la date est interprétée en UTC
+| Option | Description |
+|---|---|
+| `--since DATE` | Début de la période, inclus |
+| `--until DATE` | Fin de la période, exclue |
+| `--log FICHIER` | Fichier ou motif à lire, option répétable |
+| `--source auto\|journal` | Détection automatique ou lecture de journald |
+| `--output-dir DOSSIER` | Dossier des CSV, `resultats-ssh/` par défaut |
+| `--syslog-year ANNEE` | Année à utiliser pour les anciens logs sans année |
+| `--syslog-offset +HH:MM` | Décalage horaire des anciens logs, UTC par défaut |
+| `--offline` | Accepté pour compatibilité, le programme reste toujours hors ligne |
+| `--version` | Version du programme et date de préparation de la base |
+| `-h`, `--help` | Aide de la commande |
 
-## les journaux
+Les dates utilisent le format ISO 8601, par exemple `2026-11-01` ou `2026-11-01T12:00:00+01:00` ; sans fuseau, elles sont interprétées en UTC
 
-par défaut, le programme cherche `/var/log/auth.log*` et `/var/log/secure*`, y compris les fichiers `.gz`
+## Les CSV générés
 
-s'il n'en trouve pas, il passe par journald, sans jamais additionner les deux sources
+| Fichier | Colonnes |
+|---|---|
+| `classement_pays.csv` | Code pays, nom, nombre d'échecs, IP distinctes, pourcentage, première et dernière tentative |
+| `detail_ip.csv` | IP, code pays, nom, nombre d'échecs, première et dernière tentative |
 
-`--log` peut être répété et le joker `*` fonctionne dans le nom du fichier
+Les lignes sont triées par nombre d'échecs décroissant et les dates sont exportées en UTC avec leur fuseau explicite
 
-pour lire les archives `.gz`, il faut la commande système `gzip`, et pour journald, il faut `journalctl`
+Les fichiers utilisent UTF-8 avec BOM et le séparateur `;` pour faciliter leur ouverture dans Excel
 
-ces deux commandes fonctionnent hors ligne et ne sont pas nécessaires pour lire un simple fichier texte
+Chaque lancement remplace les deux CSV du dossier choisi ; utilise un autre `--output-dir` si tu veux conserver plusieurs relevés
 
-pour les anciens logs syslog sans année ou sans fuseau, tu peux préciser les valeurs :
+## Les journaux analysés
+
+Par défaut, sshgeo cherche `/var/log/auth.log*` et `/var/log/secure*`, y compris les fichiers `.gz` ; s'il n'en trouve pas, il passe par journald
+
+Les deux sources ne sont jamais additionnées et un même fichier sélectionné par plusieurs motifs n'est lu qu'une fois
+
+L'option `--log` peut être répétée et accepte le joker `*` dans le nom du fichier ; garde les guillemets autour des motifs pour laisser sshgeo les traiter
+
+La lecture des archives `.gz` utilise la commande système `gzip`, et celle de journald utilise `journalctl` ; ces deux commandes fonctionnent hors ligne et ne sont pas nécessaires pour analyser un fichier texte
+
+Pour une ancienne archive syslog sans année ni fuseau :
 
 ```bash
 sshgeo --log archive.log --syslog-year 2026 --syslog-offset +01:00
 ```
 
-sans ces options, l'année est déduite de la date de modification du fichier et le fuseau utilisé est UTC
+Sans ces options, l'année est déduite de la date de modification du fichier et le fuseau utilisé est UTC ; si une archive couvre un changement d'heure, traite les périodes séparément avec leur décalage respectif
 
-si une archive couvre un changement d'heure, sépare les périodes et utilise le bon décalage pour chacune
+## Fonctionnement hors ligne
 
-## le fonctionnement hors ligne
+Les bases des pays sont incluses dans l'exécutable au moment de la compilation avec `include_bytes!`
 
-les bases des pays sont intégrées au moment de la compilation avec `include_bytes!`
+Une fois compilé, le programme n'a besoin ni du dossier `data/`, ni d'un cache, ni de Python, ni d'un accès réseau ; le binaire utilise toutefois les bibliothèques système Linux et doit être exécuté sur une machine compatible
 
-une fois compilé, le binaire n'a pas besoin du dossier `data/`, d'un cache, d'une API ou d'un accès réseau
+Les journaux sont lus ligne par ligne pour limiter la mémoire utilisée, et le pays de chaque IP distincte est retrouvé par recherche binaire dans les plages intégrées
 
-`--offline` reste accepté pour compatibilité, mais le programme est déjà toujours hors ligne
+## Base des pays
 
-les outils de compilation doivent être installés à l'avance si tu veux aussi compiler sans réseau
+Les données proviennent de [DB-IP](https://db-ip.com/), via [ip-location-db](https://github.com/sapics/ip-location-db/tree/main/dbip-country), sous licence **CC BY 4.0**
 
-le binaire utilise les bibliothèques système Linux, donc il faut une machine compatible ou le recompiler sur la machine cible
+La base fournie a été préparée le **9 novembre 2026** ; les empreintes SHA-256 des fichiers sources et des bases binaires sont dans [`data/metadata.json`](data/metadata.json)
 
-## la base des pays
+Les pays sont identifiés par leur code ISO à deux lettres, avec les noms français courants traduits et `??` pour les IP non couvertes
 
-les données viennent de [DB-IP](https://db-ip.com/), via [ip-location-db](https://github.com/sapics/ip-location-db/tree/main/dbip-country), sous licence **CC BY 4.0**
-
-la base fournie a été préparée le **9 novembre 2026** et les empreintes SHA-256 sont dans `data/metadata.json`
-
-les pays sont identifiés par leur code ISO à deux lettres, avec les noms français courants traduits et `??` pour les IP non couvertes
-
-la base reste figée dans le binaire, donc elle ne se met pas à jour toute seule
-
-si tu veux préparer une nouvelle version, récupère les deux CSV séparément puis lance :
+La base reste figée dans le binaire et ne se met pas à jour automatiquement ; pour préparer une nouvelle version à partir de CSV récupérés séparément :
 
 ```bash
 python3 prepare_database.py dbip-country-ipv4.csv dbip-country-ipv6.csv
-cargo build --release --offline
+cargo build --release --locked --offline
 ```
 
-le script de préparation travaille uniquement sur les fichiers locaux, sans téléchargement
+Python sert uniquement à cette étape facultative de préparation, qui travaille sur des fichiers locaux ; il n'est pas nécessaire pour compiler les sources déjà fournies ou lancer sshgeo
 
-Python sert seulement à cette étape facultative, pas à la compilation des sources déjà fournies ni à l'exécution de sshgeo
+Si tu remplaces les bases, actualise aussi leur date dans `--version` et dans ce README
 
-si tu changes la base, pense aussi à actualiser sa date dans `--version` et dans ce README
+L'attribution complète des données est disponible dans [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
 
-## les limites
+## Ce que les résultats permettent de savoir
 
-le pays correspond à la machine source, pas forcément à la personne derrière les tentatives, puisqu'un VPS, un VPN ou une machine compromise peut servir de relais
+Le pays correspond à la machine source, pas forcément à la personne derrière les tentatives : un VPS, un VPN ou une machine compromise peut servir de relais
 
-le classement couvre les échecs SSH présents dans les journaux disponibles, pas les DDoS ni les événements déjà supprimés par la rotation des logs
+Les totaux couvrent uniquement les échecs de mot de passe présents dans les journaux encore disponibles et dans la période choisie ; ils ne constituent pas un historique des DDoS ou des scans de ports
 
-une erreur de lecture ou une date illisible arrête le calcul et renvoie un code d'erreur, donc un ancien CSV ne doit pas être pris pour le résultat du lancement qui a échoué
+Si une lecture échoue ou si une date est illisible, le programme s'arrête avec un code d'erreur ; un CSV conservé d'un précédent lancement ne doit alors pas être pris pour un nouveau résultat
 
-## tester
+## Tests et performances
 
 ```bash
-cargo test --offline
+cargo test --locked --offline
 ```
 
-les tests couvrent les dates, les fuseaux, les limites de période, le comptage, les adresses IPv4 mappées en IPv6, la recherche des pays et le passage d'année des logs syslog
+Les tests couvrent les dates, les fuseaux, les bornes temporelles, le comptage, les IPv4 mappées en IPv6, la géolocalisation et le passage d'année des logs syslog
 
-sur une même archive compressée, les versions Rust et Python retrouvent **51 026 échecs, 409 IP et 59 pays**
+Sur une même archive compressée contenant **51 026 échecs et 409 IP**, Rust a pris environ **0,11 seconde**, contre **2,76 secondes** pour la version Python, avec des bases locales et les mêmes résultats ; ces durées dépendent de la machine et du volume des journaux
 
-sur la machine de test, Rust a pris environ **0,11 seconde** contre **2,76 secondes** pour Python, avec une base locale dans les deux cas
-
-la compilation et l'exécution ont aussi été vérifiées sans interface réseau active avec `unshare --net`, puis les comptes, les pays et les dates des CSV ont été comparés à ceux de Python
-
-## le dossier
-
-```text
-sshgeo/
-├── Cargo.toml
-├── Cargo.lock
-├── README.md
-├── THIRD_PARTY_NOTICES.md
-├── src/
-│   └── main.rs
-├── data/
-│   ├── geoip-v4.bin
-│   ├── geoip-v6.bin
-│   └── metadata.json
-├── prepare_database.py
-└── sshgeo-launcher.sh
-```
-
-les bases du dossier `data/` font partie des sources à mettre dans le dépôt, car elles sont nécessaires pour compiler hors ligne
-
-les binaires compilés, les journaux et les résultats CSV sont exclus par le `.gitignore`
+La compilation et l'exécution ont également été vérifiées dans un espace réseau isolé avec `unshare --net`
